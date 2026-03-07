@@ -20,8 +20,8 @@ class Meeting(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     meeting_type: Mapped[str] = mapped_column(String(64), nullable=False)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default="active")
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
-    updated_at: Mapped[datetime] = mapped_column(default=datetime.utcnow, onupdate=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.utcnow())
+    updated_at: Mapped[datetime] = mapped_column(default=lambda: datetime.utcnow(), onupdate=lambda: datetime.utcnow())
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     file_context: Mapped[str | None] = mapped_column(Text, nullable=True)
 
@@ -46,7 +46,7 @@ class TranscriptSegment(Base):
     speaker: Mapped[str] = mapped_column(String(128), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     timestamp: Mapped[float] = mapped_column(Float, nullable=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.utcnow())
 
     meeting: Mapped[Meeting] = relationship("Meeting", back_populates="segments")
 
@@ -61,7 +61,7 @@ class Task(Base):
     description: Mapped[str] = mapped_column(Text, nullable=False)
     assignee: Mapped[str | None] = mapped_column(String(128), nullable=True)
     completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.utcnow())
 
     meeting: Mapped[Meeting] = relationship("Meeting", back_populates="tasks")
 
@@ -77,6 +77,6 @@ class AISuggestion(Base):
     suggestion_type: Mapped[str] = mapped_column(String(32), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
     dismissed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    created_at: Mapped[datetime] = mapped_column(default=datetime.utcnow)
+    created_at: Mapped[datetime] = mapped_column(default=lambda: datetime.utcnow())
 
     meeting: Mapped[Meeting] = relationship("Meeting", back_populates="suggestions")

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -15,10 +16,21 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initialising database …")
+    await init_db()
+    logger.info("MeetingMind AI is ready.")
+    yield
+    logger.info("MeetingMind AI shutting down.")
+
+
 app = FastAPI(
     title="MeetingMind AI",
     description="AI-powered meeting assistant for Big Data engineers",
     version="1.0.0",
+    lifespan=lifespan,
 )
 
 # ---------------------------------------------------------------------------
@@ -31,16 +43,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# ---------------------------------------------------------------------------
-# Startup
-# ---------------------------------------------------------------------------
-
-@app.on_event("startup")
-async def on_startup() -> None:
-    logger.info("Initialising database …")
-    await init_db()
-    logger.info("MeetingMind AI is ready.")
 
 # ---------------------------------------------------------------------------
 # Routers

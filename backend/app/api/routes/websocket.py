@@ -111,13 +111,17 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
                         recent_text = "\n".join(transcript_buffer[-20:])
                         full_text = "\n".join(transcript_buffer)
 
-                        # Run both concurrently
-                        suggestions, tasks = await asyncio.gather(
+                        # Run both concurrently; return_exceptions ensures one failure
+                        # doesn't cancel the other operation.
+                        results = await asyncio.gather(
                             intelligence.generate_suggestions(
                                 meeting_id, recent_text, meeting_type, context
                             ),
                             task_extractor.extract(full_text, context),
+                            return_exceptions=True,
                         )
+                        suggestions = results[0] if not isinstance(results[0], Exception) else []
+                        tasks = results[1] if not isinstance(results[1], Exception) else []
 
                         async with SessionLocal() as db:
                             for s in suggestions:

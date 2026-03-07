@@ -19,8 +19,6 @@ from typing import List
 router = APIRouter(prefix="/api/suggestions", tags=["suggestions"])
 logger = logging.getLogger(__name__)
 
-_engine = IntelligenceEngine.__new__(IntelligenceEngine)
-
 
 class SuggestionGenerateRequest(BaseModel):
     meeting_id: str
