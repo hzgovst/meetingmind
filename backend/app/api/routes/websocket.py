@@ -78,6 +78,7 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
             # Handle binary audio frames
             if "bytes" in data and data["bytes"]:
                 chunk: bytes = data["bytes"]
+                logger.info("Received %d bytes of audio for meeting %s", len(chunk), meeting_id)
                 result = await audio_processor.push_chunk(chunk)
 
                 if result and result.text:

@@ -97,6 +97,7 @@ class GeminiClient:
 
         Returns: {"speaker": str, "text": str, "confidence": float}
         """
+        logger.info("transcribe_audio: received %d bytes of audio data", len(audio_data))
         prompt = (
             f"{context}\n\n"
             "You are a professional meeting transcription service. "
@@ -132,7 +133,9 @@ class GeminiClient:
                     ),
                 ]),
             )
-            return self._parse_json(response.text)
+            result = self._parse_json(response.text)
+            logger.info("transcribe_audio: result text=%r", result.get("text", ""))
+            return result
         except Exception as exc:
             logger.warning("Audio transcription failed: %s — returning empty segment", exc)
             return {"speaker": "Speaker 1", "text": "", "confidence": 0.0}
