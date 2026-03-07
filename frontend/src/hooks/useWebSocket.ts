@@ -30,12 +30,11 @@ export function useWebSocket(meetingId: string | null): UseWebSocketReturn {
   const meetingIdRef = useRef(meetingId);
   meetingIdRef.current = meetingId;
 
-  const { addTranscriptSegment, addSuggestion, addTask } = useMeetingStore();
-
   const handleMessage = useCallback(
     (event: MessageEvent) => {
       try {
         const message = JSON.parse(event.data as string) as WebSocketMessage;
+        const { addTranscriptSegment, addSuggestion, addTask } = useMeetingStore.getState();
         switch (message.type) {
           case 'transcript':
             addTranscriptSegment(message.data as TranscriptSegment);
@@ -57,7 +56,7 @@ export function useWebSocket(meetingId: string | null): UseWebSocketReturn {
         console.warn('[WS] Failed to parse message:', event.data);
       }
     },
-    [addTranscriptSegment, addSuggestion, addTask]
+    [] // Store methods accessed via getState() — no stale closure risk
   );
 
   const connect = useCallback(() => {

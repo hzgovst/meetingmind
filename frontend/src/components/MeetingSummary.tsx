@@ -21,7 +21,7 @@ export function MeetingSummary() {
 
   if (!summary) return null;
 
-  const buildMarkdown = () => {
+  const buildMarkdown = useCallback(() => {
     const lines = [
       `# Meeting Summary — ${currentMeeting?.title ?? 'Meeting'}`,
       `_Generated ${new Date().toLocaleString()}_`,
@@ -47,11 +47,11 @@ export function MeetingSummary() {
       summary.follow_up_questions.forEach((q) => lines.push(`- ${q}`));
     }
     return lines.join('\n');
-  };
+  }, [summary, currentMeeting]);
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(buildMarkdown());
-  }, [summary]);
+  }, [buildMarkdown]);
 
   const handleDownload = useCallback(() => {
     const md = buildMarkdown();
@@ -62,7 +62,7 @@ export function MeetingSummary() {
     a.download = `summary-${Date.now()}.md`;
     a.click();
     URL.revokeObjectURL(url);
-  }, [summary]);
+  }, [buildMarkdown]);
 
   const handlePrint = () => window.print();
 
