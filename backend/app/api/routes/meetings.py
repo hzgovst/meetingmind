@@ -14,6 +14,7 @@ from app.core.context_manager import ContextManager
 from app.core.gemini_client import GeminiClient
 from app.models.meeting import AISuggestion, Meeting, Task, TranscriptSegment
 from app.schemas.meeting import (
+    ActionItem,
     AISuggestionRead,
     AISuggestionUpdate,
     MeetingCreate,
@@ -101,6 +102,7 @@ async def get_meeting(meeting_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{meeting_id}", response_model=MeetingRead)
+@router.patch("/{meeting_id}", response_model=MeetingRead)
 async def update_meeting(
     meeting_id: str,
     payload: MeetingUpdate,
@@ -152,6 +154,7 @@ async def get_tasks(meeting_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{meeting_id}/tasks/{task_id}", response_model=TaskRead)
+@router.patch("/{meeting_id}/tasks/{task_id}", response_model=TaskRead)
 async def update_task(
     meeting_id: str,
     task_id: str,
@@ -188,6 +191,7 @@ async def get_suggestions(meeting_id: str, db: AsyncSession = Depends(get_db)):
 
 
 @router.put("/{meeting_id}/suggestions/{sugg_id}", response_model=AISuggestionRead)
+@router.patch("/{meeting_id}/suggestions/{sugg_id}", response_model=AISuggestionRead)
 async def update_suggestion(
     meeting_id: str,
     sugg_id: str,
@@ -206,6 +210,28 @@ async def update_suggestion(
         raise HTTPException(status_code=404, detail="Suggestion not found")
     for key, value in payload.model_dump(exclude_none=True).items():
         setattr(suggestion, key, value)
+    await db.flush()
+    await db.refresh(suggestion)
+    return suggestion
+
+
+@router.post("/{meeting_id}/suggestions/{sugg_id}/dismiss", response_model=AISuggestionRead)
+async def dismiss_suggestion(
+    meeting_id: str,
+    sugg_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    await _get_meeting_or_404(meeting_id, db)
+    result = await db.execute(
+        select(AISuggestion).where(
+            AISuggestion.id == sugg_id,
+            AISuggestion.meeting_id == meeting_id,
+        )
+    )
+    suggestion = result.scalar_one_or_none()
+    if not suggestion:
+        raise HTTPException(status_code=404, detail="Suggestion not found")
+    suggestion.dismissed = True
     await db.flush()
     await db.refresh(suggestion)
     return suggestion
@@ -248,4 +274,21 @@ async def generate_summary(
     meeting.summary = json.dumps(summary_data)
     await db.flush()
 
-    return SummaryResponse(**summary_data)
+    # Normalize action_items to list of ActionItem objects
+    raw_items = summary_data.get("action_items", [])
+    normalized_items: list[ActionItem] = []
+    for item in raw_items:
+        if isinstance(item, dict):
+            normalized_items.append(ActionItem(
+                description=item.get("description", str(item)),
+                owner=item.get("owner") or item.get("assignee"),
+            ))
+        else:
+            normalized_items.append(ActionItem(description=str(item)))
+
+    return SummaryResponse(
+        executive_summary=summary_data.get("executive_summary", ""),
+        key_decisions=summary_data.get("key_decisions", []),
+        action_items=normalized_items,
+        follow_up_questions=summary_data.get("follow_up_questions", []),
+    )

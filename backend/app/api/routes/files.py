@@ -23,6 +23,55 @@ _MAX_BYTES = settings.MAX_FILE_SIZE_MB * 1024 * 1024
 
 
 @router.post(
+    "/{meeting_id}/upload",
+    response_model=FileUploadResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_file(
+    meeting_id: str,
+    file: UploadFile = File(...),
+    db: AsyncSession = Depends(get_db),
+    gemini: GeminiClient = Depends(get_gemini_client),
+    ctx_mgr: ContextManager = Depends(get_context_manager),
+):
+    result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
+    meeting = result.scalar_one_or_none()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    raw = await file.read()
+
+    if len(raw) > _MAX_BYTES:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File '{file.filename}' exceeds the {settings.MAX_FILE_SIZE_MB} MB limit.",
+        )
+
+    content_text, note = _processor.process(file.filename or "upload", raw)
+
+    if content_text:
+        ai_summary = await gemini.process_file(content_text, file.filename or "upload")
+    else:
+        ai_summary = note
+
+    ctx_mgr.add_file_context(meeting_id, file.filename or "upload", ai_summary)
+
+    # Persist file context reference on the meeting row
+    existing = meeting.file_context or ""
+    meeting.file_context = (
+        existing + f"\n---\nFile: {file.filename}\n{ai_summary}"
+    ).strip()
+
+    await db.flush()
+
+    return FileUploadResponse(
+        name=file.filename or "upload",
+        summary=ai_summary,
+        size=len(raw),
+    )
+
+
+@router.post(
     "/{meeting_id}/files",
     response_model=List[FileUploadResponse],
     status_code=status.HTTP_201_CREATED,
@@ -59,7 +108,6 @@ async def upload_files(
 
         ctx_mgr.add_file_context(meeting_id, upload.filename or "upload", ai_summary)
 
-        # Persist file context reference on the meeting row
         existing = meeting.file_context or ""
         meeting.file_context = (
             existing + f"\n---\nFile: {upload.filename}\n{ai_summary}"
@@ -67,9 +115,9 @@ async def upload_files(
 
         responses.append(
             FileUploadResponse(
-                filename=upload.filename or "upload",
+                name=upload.filename or "upload",
                 summary=ai_summary,
-                size_bytes=len(raw),
+                size=len(raw),
             )
         )
 

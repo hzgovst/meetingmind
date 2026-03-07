@@ -112,10 +112,15 @@ class AISuggestionRead(_OrmBase):
 # Summary
 # ---------------------------------------------------------------------------
 
+class ActionItem(BaseModel):
+    description: str
+    owner: Optional[str] = None
+
+
 class SummaryResponse(BaseModel):
     executive_summary: str
     key_decisions: List[str]
-    action_items: List[str]
+    action_items: List[ActionItem]
     follow_up_questions: List[str]
 
 
@@ -124,9 +129,9 @@ class SummaryResponse(BaseModel):
 # ---------------------------------------------------------------------------
 
 class FileUploadResponse(BaseModel):
-    filename: str
+    name: str
     summary: str
-    size_bytes: int
+    size: int
 
 
 # Forward-ref resolution

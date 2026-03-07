@@ -54,7 +54,7 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
         result = await db.execute(select(Meeting).where(Meeting.id == meeting_id))
         meeting = result.scalar_one_or_none()
         if not meeting:
-            await _send_json(websocket, {"type": "status", "message": "Meeting not found"})
+            await _send_json(websocket, {"type": "status", "data": {"message": "Meeting not found"}})
             await websocket.close(code=1008)
             return
         meeting_type = meeting.meeting_type
@@ -69,7 +69,7 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
     transcript_buffer: list[str] = []
     segment_count = 0
 
-    await _send_json(websocket, {"type": "status", "message": "connected"})
+    await _send_json(websocket, {"type": "status", "data": {"message": "connected"}})
 
     try:
         while True:
@@ -99,11 +99,14 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
 
                     await _send_json(websocket, {
                         "type": "transcript",
-                        "id": segment_id,
-                        "speaker": result.speaker,
-                        "text": result.text,
-                        "timestamp": result.timestamp,
-                        "confidence": result.confidence,
+                        "data": {
+                            "id": segment_id,
+                            "meeting_id": meeting_id,
+                            "speaker": result.speaker,
+                            "content": result.text,
+                            "timestamp": result.timestamp,
+                            "created_at": "",
+                        },
                     })
 
                     # Periodically run suggestions and task extraction
@@ -134,9 +137,14 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
                                 db.add(sugg)
                                 await _send_json(websocket, {
                                     "type": "suggestion",
-                                    "id": sugg.id,
-                                    "suggestion_type": sugg.suggestion_type,
-                                    "content": sugg.content,
+                                    "data": {
+                                        "id": sugg.id,
+                                        "meeting_id": meeting_id,
+                                        "suggestion_type": sugg.suggestion_type,
+                                        "content": sugg.content,
+                                        "dismissed": False,
+                                        "created_at": "",
+                                    },
                                 })
 
                             for t in tasks:
@@ -149,9 +157,14 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
                                 db.add(task)
                                 await _send_json(websocket, {
                                     "type": "task",
-                                    "id": task.id,
-                                    "description": task.description,
-                                    "assignee": task.assignee,
+                                    "data": {
+                                        "id": task.id,
+                                        "meeting_id": meeting_id,
+                                        "description": task.description,
+                                        "assignee": task.assignee,
+                                        "completed": False,
+                                        "created_at": "",
+                                    },
                                 })
 
                             await db.commit()
@@ -179,14 +192,19 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
                         transcript_buffer.append(f"{result.speaker}: {result.text}")
                         await _send_json(websocket, {
                             "type": "transcript",
-                            "speaker": result.speaker,
-                            "text": result.text,
-                            "timestamp": result.timestamp,
+                            "data": {
+                                "id": str(uuid.uuid4()),
+                                "meeting_id": meeting_id,
+                                "speaker": result.speaker,
+                                "content": result.text,
+                                "timestamp": result.timestamp,
+                                "created_at": "",
+                            },
                         })
-                    await _send_json(websocket, {"type": "status", "message": "flushed"})
+                    await _send_json(websocket, {"type": "status", "data": {"message": "flushed"}})
 
                 elif msg.get("action") == "ping":
-                    await _send_json(websocket, {"type": "status", "message": "pong"})
+                    await _send_json(websocket, {"type": "status", "data": {"message": "pong"}})
 
     except WebSocketDisconnect:
         logger.info("WebSocket disconnected for meeting %s", meeting_id)
@@ -208,4 +226,4 @@ async def websocket_endpoint(websocket: WebSocket, meeting_id: str):
             logger.warning("Flush on disconnect failed: %s", exc)
     except Exception as exc:
         logger.error("WebSocket error for meeting %s: %s", meeting_id, exc)
-        await _send_json(websocket, {"type": "status", "message": f"error: {exc}"})
+        await _send_json(websocket, {"type": "error", "data": {"message": str(exc)}})

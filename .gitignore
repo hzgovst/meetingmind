@@ -1,6 +1,50 @@
 
+# Environment variables (contains API keys)
+.env
+
 # Python
 __pycache__/
 *.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+*.egg-info/
+.eggs/
+dist/
+build/
+
+# SQLite database files
 *.db
-.env
+*.db-shm
+*.db-wal
+backend/data/
+
+# Node.js / Frontend
+node_modules/
+frontend/dist/
+frontend/.vite/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Test coverage
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Temporary files
+*.tmp
+*.temp

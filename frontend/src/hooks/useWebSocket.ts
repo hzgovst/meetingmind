@@ -89,8 +89,9 @@ export function useWebSocket(meetingId: string | null): UseWebSocketReturn {
         reconnectTimeoutRef.current = setTimeout(connect, delay);
       };
 
-      ws.onerror = () => {
+      ws.onerror = (event) => {
         if (!isMountedRef.current) return;
+        console.error('[WS] Connection error:', event);
         setConnectionStatus('error');
       };
     } catch {
