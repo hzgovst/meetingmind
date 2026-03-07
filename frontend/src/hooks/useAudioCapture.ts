@@ -74,6 +74,7 @@ export function useAudioCapture(): UseAudioCaptureReturn {
 
         recorder.ondataavailable = (event) => {
           if (event.data.size > 0 && onChunkRef.current) {
+            console.log(`[Audio] Chunk produced: ${event.data.size} bytes`);
             onChunkRef.current(event.data);
           }
         };

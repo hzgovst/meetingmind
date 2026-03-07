@@ -6,6 +6,7 @@ type ConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error';
 
 interface UseWebSocketReturn {
   sendAudioChunk: (chunk: Blob) => void;
+  waitForConnection: (timeout?: number) => Promise<void>;
   isConnected: boolean;
   connectionStatus: ConnectionStatus;
   disconnect: () => void;
@@ -129,12 +130,38 @@ export function useWebSocket(meetingId: string | null): UseWebSocketReturn {
 
   const sendAudioChunk = useCallback((chunk: Blob) => {
     if (wsRef.current?.readyState === WebSocket.OPEN) {
-      wsRef.current.send(chunk);
+      console.log(`[WS] Sending audio chunk: ${chunk.size} bytes`);
+      chunk.arrayBuffer().then((buffer) => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          wsRef.current.send(buffer);
+        }
+      });
     }
+  }, []);
+
+  const waitForConnection = useCallback((timeout = 10000): Promise<void> => {
+    return new Promise((resolve, reject) => {
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        resolve();
+        return;
+      }
+      const timeoutId = setTimeout(() => {
+        clearInterval(pollInterval);
+        reject(new Error('WebSocket connection timeout'));
+      }, timeout);
+      const pollInterval = setInterval(() => {
+        if (wsRef.current?.readyState === WebSocket.OPEN) {
+          clearInterval(pollInterval);
+          clearTimeout(timeoutId);
+          resolve();
+        }
+      }, 50);
+    });
   }, []);
 
   return {
     sendAudioChunk,
+    waitForConnection,
     isConnected: connectionStatus === 'connected',
     connectionStatus,
     disconnect,

@@ -8,7 +8,7 @@ export function useMeeting() {
   const store = useMeetingStore();
   const { startRecording, stopRecording, pauseRecording, resumeRecording, audioLevel, error: audioError } =
     useAudioCapture();
-  const { sendAudioChunk, isConnected, connectionStatus, disconnect } = useWebSocket(
+  const { sendAudioChunk, waitForConnection, isConnected, connectionStatus, disconnect } = useWebSocket(
     store.currentMeeting?.id ?? null
   );
 
@@ -36,13 +36,14 @@ export function useMeeting() {
         store.setIsRecording(true);
         store.setIsPaused(false);
         startTimer();
+        await waitForConnection();
         await startRecording(sendAudioChunk);
       } catch (err) {
         console.error('Failed to start meeting:', err);
         throw err;
       }
     },
-    [store, startTimer, startRecording, sendAudioChunk]
+    [store, startTimer, startRecording, sendAudioChunk, waitForConnection]
   );
 
   const stopMeeting = useCallback(async () => {

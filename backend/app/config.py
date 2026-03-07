@@ -13,7 +13,7 @@ class Settings(BaseSettings):
     )
 
     GEMINI_API_KEY: str
-    GEMINI_MODEL: str = "gemini-2.0-flash-exp"
+    GEMINI_MODEL: str = "gemini-2.0-flash"
     GEMINI_FALLBACK_MODEL: str = "gemini-2.0-flash-lite"
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/meetingmind.db"
@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     MAX_RPM: int = 14
 
     # Audio buffering
-    AUDIO_CHUNK_SECONDS: int = 12
+    AUDIO_CHUNK_SECONDS: int = 6
 
     # File uploads
     MAX_FILE_SIZE_MB: int = 10
