@@ -6,11 +6,38 @@ import logging
 import time
 from typing import Any
 
-import google.generativeai as genai
-
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+_TRANSCRIBE_PROMPT = (
+    "Transcribe this audio segment from a meeting. "
+    "Identify the speaker if possible. "
+    "Respond ONLY with valid JSON: "
+    '{"speaker": "Speaker 1", "text": "<text>", "confidence": 0.95}'
+)
+
+# ---------------------------------------------------------------------------
+# Initialise the chosen backend once at import time
+# ---------------------------------------------------------------------------
+
+_USE_VERTEX = bool(settings.GCP_PROJECT_ID)
+
+if _USE_VERTEX:
+    import vertexai
+    from vertexai.generative_models import GenerativeModel, Part  # type: ignore
+
+    vertexai.init(project=settings.GCP_PROJECT_ID, location=settings.GCP_LOCATION)
+    logger.info(
+        "GeminiClient: using Vertex AI (project=%s, location=%s)",
+        settings.GCP_PROJECT_ID,
+        settings.GCP_LOCATION,
+    )
+else:
+    import google.generativeai as genai  # type: ignore
+
+    genai.configure(api_key=settings.GEMINI_API_KEY)
+    logger.info("GeminiClient: using google-generativeai (free tier)")
 
 
 class _TokenBucket:
@@ -44,10 +71,9 @@ class _TokenBucket:
 
 
 class GeminiClient:
-    """Thin async wrapper around the google-generativeai SDK."""
+    """Thin async wrapper supporting both Vertex AI and google-generativeai."""
 
     def __init__(self) -> None:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
         self._primary = settings.GEMINI_MODEL
         self._fallback = settings.GEMINI_FALLBACK_MODEL
         self._limiter = _TokenBucket(settings.MAX_RPM)
@@ -58,10 +84,16 @@ class GeminiClient:
 
     async def _generate(self, model_name: str, prompt: str) -> str:
         await self._limiter.acquire()
-        model = genai.GenerativeModel(model_name)
-        response = await asyncio.get_event_loop().run_in_executor(
-            None, lambda: model.generate_content(prompt)
-        )
+        if _USE_VERTEX:
+            model = GenerativeModel(model_name)
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: model.generate_content(prompt)
+            )
+        else:
+            model = genai.GenerativeModel(model_name)
+            response = await asyncio.get_event_loop().run_in_executor(
+                None, lambda: model.generate_content(prompt)
+            )
         return response.text
 
     async def _generate_with_fallback(self, prompt: str) -> str:
@@ -98,41 +130,32 @@ class GeminiClient:
         Returns: {"speaker": str, "text": str, "confidence": float}
         """
         logger.info("transcribe_audio: received %d bytes of audio data", len(audio_data))
-        prompt = (
-            f"{context}\n\n"
-            "You are a professional meeting transcription service. "
-            "The following is a base64-encoded WebM/Opus audio chunk from a meeting recording. "
-            "Transcribe it and identify the speaker if possible.\n\n"
-            f"Audio data length: {len(audio_data)} bytes\n\n"
-            "Respond ONLY with valid JSON in this exact format:\n"
-            '{"speaker": "Speaker 1", "text": "<transcribed text>", "confidence": 0.95}\n\n'
-            "If audio is silent or unclear, return an empty text field."
-        )
         try:
-            # Use the Files API for actual audio when available; fall back to prompt-only
-            model = genai.GenerativeModel(self._primary)
             await self._limiter.acquire()
+            if _USE_VERTEX:
+                model = GenerativeModel(self._primary)
+                audio_part = Part.from_data(data=audio_data, mime_type="audio/webm")
+                text_part = Part.from_text(_TRANSCRIBE_PROMPT)
+                response = await asyncio.get_event_loop().run_in_executor(
+                    None, lambda: model.generate_content([audio_part, text_part])
+                )
+            else:
+                import base64
 
-            import base64
-            audio_b64 = base64.b64encode(audio_data).decode()
-
-            response = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: model.generate_content([
-                    {
-                        "inline_data": {
-                            "mime_type": "audio/webm",
-                            "data": audio_b64,
-                        }
-                    },
-                    (
-                        "Transcribe this audio segment from a meeting. "
-                        "Identify the speaker if possible. "
-                        "Respond ONLY with valid JSON: "
-                        '{"speaker": "Speaker 1", "text": "<text>", "confidence": 0.95}'
-                    ),
-                ]),
-            )
+                audio_b64 = base64.b64encode(audio_data).decode()
+                model = genai.GenerativeModel(self._primary)
+                response = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: model.generate_content([
+                        {
+                            "inline_data": {
+                                "mime_type": "audio/webm",
+                                "data": audio_b64,
+                            }
+                        },
+                        _TRANSCRIBE_PROMPT,
+                    ]),
+                )
             result = self._parse_json(response.text)
             logger.info("transcribe_audio: result text=%r", result.get("text", ""))
             return result
@@ -255,3 +278,4 @@ class GeminiClient:
         except Exception as exc:
             logger.warning("File processing failed: %s", exc)
             return f"Could not process file '{filename}'."
+
