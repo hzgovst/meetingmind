@@ -1,14 +1,40 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import logging
+import subprocess
 import time
 from typing import Any
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
+
+
+def _convert_webm_to_wav(webm_bytes: bytes) -> bytes:
+    """Convert WebM/Opus audio bytes to WAV PCM bytes using ffmpeg."""
+    cmd = [
+        "ffmpeg",
+        "-i", "pipe:0",
+        "-f", "wav",
+        "-acodec", "pcm_s16le",
+        "-ar", "16000",
+        "-ac", "1",
+        "pipe:1",
+    ]
+    process = subprocess.Popen(
+        cmd,
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    wav_bytes, stderr = process.communicate(input=webm_bytes)
+    if process.returncode != 0:
+        raise RuntimeError(f"ffmpeg conversion failed with code {process.returncode}: {stderr.decode()}")
+    return wav_bytes
+
 
 _TRANSCRIBE_PROMPT = (
     "Transcribe this audio segment from a meeting. "
@@ -129,27 +155,26 @@ class GeminiClient:
 
         Returns: {"speaker": str, "text": str, "confidence": float}
         """
-        import base64
-
         logger.info("transcribe_audio: received %d bytes of audio data", len(audio_data))
         try:
             await self._limiter.acquire()
-            audio_b64 = base64.b64encode(audio_data).decode()
+            wav_data = _convert_webm_to_wav(audio_data)
             if _USE_VERTEX:
                 model = GenerativeModel(self._primary)
-                audio_part = Part.from_data(data=audio_data, mime_type="audio/webm;codecs=opus")
+                audio_part = Part.from_data(data=wav_data, mime_type="audio/wav")
                 text_part = Part.from_text(_TRANSCRIBE_PROMPT)
                 response = await asyncio.get_event_loop().run_in_executor(
                     None, lambda: model.generate_content([audio_part, text_part])
                 )
             else:
+                audio_b64 = base64.b64encode(wav_data).decode()
                 model = genai.GenerativeModel(self._primary)
                 response = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: model.generate_content([
                         {
                             "inline_data": {
-                                "mime_type": "audio/webm;codecs=opus",
+                                "mime_type": "audio/wav",
                                 "data": audio_b64,
                             }
                         },
