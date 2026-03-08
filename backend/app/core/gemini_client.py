@@ -129,27 +129,27 @@ class GeminiClient:
 
         Returns: {"speaker": str, "text": str, "confidence": float}
         """
+        import base64
+
         logger.info("transcribe_audio: received %d bytes of audio data", len(audio_data))
         try:
             await self._limiter.acquire()
+            audio_b64 = base64.b64encode(audio_data).decode()
             if _USE_VERTEX:
                 model = GenerativeModel(self._primary)
-                audio_part = Part.from_data(data=audio_data, mime_type="audio/webm")
+                audio_part = Part.from_data(data=audio_data, mime_type="audio/webm;codecs=opus")
                 text_part = Part.from_text(_TRANSCRIBE_PROMPT)
                 response = await asyncio.get_event_loop().run_in_executor(
                     None, lambda: model.generate_content([audio_part, text_part])
                 )
             else:
-                import base64
-
-                audio_b64 = base64.b64encode(audio_data).decode()
                 model = genai.GenerativeModel(self._primary)
                 response = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: model.generate_content([
                         {
                             "inline_data": {
-                                "mime_type": "audio/webm",
+                                "mime_type": "audio/webm;codecs=opus",
                                 "data": audio_b64,
                             }
                         },
