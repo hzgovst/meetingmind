@@ -30,6 +30,7 @@ class AudioProcessor:
     gemini_client: GeminiClient
     context: str = ""
     _buffer: bytearray = field(default_factory=bytearray, init=False)
+    _webm_header: bytes = field(default=b"", init=False)
     _start_time: float = field(default_factory=time.monotonic, init=False)
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, init=False)
 
@@ -39,6 +40,9 @@ class AudioProcessor:
         buffer is large enough to warrant a transcription call, otherwise None.
         """
         async with self._lock:
+            if not self._webm_header and chunk[:4] == AudioProcessor._WEBM_MAGIC:
+                # First valid WebM chunk contains the container header (EBML + Segment + Tracks)
+                self._webm_header = bytes(chunk)
             self._buffer.extend(chunk)
             if len(self._buffer) >= _BUFFER_THRESHOLD:
                 return await self._flush()
@@ -49,12 +53,21 @@ class AudioProcessor:
         async with self._lock:
             return await self._flush()
 
+    # WebM magic bytes (EBML element ID: 0x1A45DFA3)
+    _WEBM_MAGIC = b"\x1a\x45\xdf\xa3"
+
     async def _flush(self) -> TranscriptResult | None:
         if not self._buffer:
             return None
 
         audio_data = bytes(self._buffer)
         self._buffer.clear()
+
+        # If this batch doesn't start with the WebM header, prepend the stored header
+        # so ffmpeg can decode the stream correctly.
+        if audio_data[:4] != self._WEBM_MAGIC and self._webm_header:
+            audio_data = self._webm_header + audio_data
+
         timestamp = time.monotonic() - self._start_time
 
         try:
