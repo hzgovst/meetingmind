@@ -12,21 +12,20 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    GEMINI_API_KEY: str
+    # Option A: Free tier (google-generativeai)
+    GEMINI_API_KEY: str = ""
+
+    # Option B: Paid tier (Vertex AI) — recommended
+    GCP_PROJECT_ID: str = ""
+    GCP_LOCATION: str = "us-central1"
+
     GEMINI_MODEL: str = "gemini-2.0-flash"
     GEMINI_FALLBACK_MODEL: str = "gemini-2.0-flash-lite"
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/meetingmind.db"
-
-    # Rate limiting — stay comfortably under 15 RPM
-    MAX_RPM: int = 14
-
-    # Audio buffering
+    MAX_RPM: int = 30
     AUDIO_CHUNK_SECONDS: int = 6
-
-    # File uploads
     MAX_FILE_SIZE_MB: int = 10
-
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://frontend:3000"]
 
 

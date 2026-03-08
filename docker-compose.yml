@@ -10,6 +10,9 @@ services:
       - "8000:8000"
     volumes:
       - db_data:/app/data
+      # Windows: uses %APPDATA%\gcloud (e.g. C:\Users\<user>\AppData\Roaming\gcloud)
+      # Linux/Mac fallback: ${HOME}/.config/gcloud:/root/.config/gcloud:ro
+      - ${APPDATA}/gcloud:/root/.config/gcloud:ro
     env_file:
       - .env
     environment:
