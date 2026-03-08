@@ -24,7 +24,7 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "sqlite+aiosqlite:///./data/meetingmind.db"
     MAX_RPM: int = 30
-    AUDIO_CHUNK_SECONDS: int = 6
+    AUDIO_CHUNK_SECONDS: int = 15
     MAX_FILE_SIZE_MB: int = 10
     CORS_ORIGINS: List[str] = ["http://localhost:3000", "http://frontend:3000"]
 

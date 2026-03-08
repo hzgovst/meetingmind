@@ -10,10 +10,11 @@ from app.core.gemini_client import GeminiClient
 
 logger = logging.getLogger(__name__)
 
-# Approximate bytes per second for WebM/Opus at 48 kHz mono (roughly 32 kbps observed).
-# A realistic estimate ensures the buffer accumulates several seconds of audio before
-# sending to the transcription API, so the WebM container headers are included in each chunk.
-_BYTES_PER_SECOND_ESTIMATE = 4_000  # ~32 kbps / 8 bits
+# Approximate bytes per second for WebM/Opus as sent by the browser's MediaRecorder.
+# Browsers typically send ~16 KB/s at the default bitrate, so this estimate ensures
+# the buffer accumulates enough audio (AUDIO_CHUNK_SECONDS worth) before sending to
+# the transcription API, providing sufficient context for accurate transcription.
+_BYTES_PER_SECOND_ESTIMATE = 16_000
 _BUFFER_THRESHOLD = _BYTES_PER_SECOND_ESTIMATE * settings.AUDIO_CHUNK_SECONDS
 
 

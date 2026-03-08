@@ -37,10 +37,16 @@ def _convert_webm_to_wav(webm_bytes: bytes) -> bytes:
 
 
 _TRANSCRIBE_PROMPT = (
-    "Transcribe this audio segment from a meeting. "
-    "Identify the speaker if possible. "
+    "You are a professional meeting transcriptionist. "
+    "Transcribe this audio segment accurately and completely. "
+    "Listen carefully to every word — accuracy is critical. "
+    "If you hear multiple speakers, identify them as Speaker 1, Speaker 2, etc. based on voice characteristics. "
+    "If only one speaker is present, use Speaker 1. "
+    "Transcribe ALL words spoken, not just keywords. Write complete sentences. "
+    "If the audio is unclear, transcribe your best interpretation rather than skipping words. "
+    "Do NOT summarize — transcribe word for word. "
     "Respond ONLY with valid JSON: "
-    '{"speaker": "Speaker 1", "text": "<text>", "confidence": 0.95}'
+    '{"speaker": "Speaker 1", "text": "the complete transcribed text here", "confidence": 0.95}'
 )
 
 # ---------------------------------------------------------------------------

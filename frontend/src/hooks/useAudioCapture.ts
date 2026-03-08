@@ -50,6 +50,7 @@ export function useAudioCapture(): UseAudioCaptureReturn {
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
+            autoGainControl: true,
             sampleRate: 16000,
           },
         });
@@ -79,7 +80,7 @@ export function useAudioCapture(): UseAudioCaptureReturn {
           }
         };
 
-        recorder.start(1000);
+        recorder.start(2000);
       } catch (err) {
         const message =
           err instanceof DOMException && err.name === 'NotAllowedError'
